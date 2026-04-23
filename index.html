@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEXUS IoT — Premium Store</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&family=Exo+2:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600&family=Syncopate:wght@400;700&family=Oxanium:wght@300;400;500;600&family=Chakra+Petch:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #080808;
@@ -611,6 +611,61 @@
   body.theme-red { --accent: #ff4444; --accent2: #dd2222; }
   body.theme-white { --accent: #ffffff; --accent2: #dddddd; }
 
+  /* PRODUCT IMAGE UPLOAD */
+  .product-img-inner img {
+    width: 100%; height: 100%; object-fit: cover;
+    position: absolute; inset: 0;
+  }
+  .product-img { position: relative; }
+  .img-upload-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.6); opacity: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s; cursor: pointer;
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--accent); letter-spacing: 2px;
+    text-transform: uppercase; flex-direction: column; gap: 8px;
+  }
+  .img-upload-overlay span { font-size: 24px; }
+  .product-img:hover .img-upload-overlay { opacity: 1; }
+  .img-input { display: none; }
+
+  /* COD BUTTON */
+  .btn-cod {
+    width: 100%; background: none; border: 1px solid var(--border2);
+    color: var(--text2); cursor: pointer;
+    font-family: var(--font-display); font-size: 18px;
+    letter-spacing: 2px; padding: 16px;
+    border-radius: 2px; transition: all 0.2s; margin-bottom: 12px;
+  }
+  .btn-cod:hover:not(:disabled) {
+    border-color: var(--text2); color: var(--white);
+    background: rgba(255,255,255,0.04);
+  }
+  .cod-note {
+    text-align: center; font-family: var(--font-mono); font-size: 10px;
+    color: var(--text3); letter-spacing: 1px; margin-bottom: 16px;
+  }
+  .payment-divider {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  }
+  .payment-divider span { color: var(--text3); font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; white-space: nowrap; }
+  .payment-divider::before, .payment-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* FONT PREVIEW */
+  .font-preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .font-option {
+    padding: 12px 14px; background: var(--bg3);
+    border: 2px solid var(--border); border-radius: 2px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .font-option:hover { border-color: var(--border2); }
+  .font-option.selected { border-color: var(--accent); background: rgba(200,255,0,0.05); }
+  .font-option-name { font-size: 10px; color: var(--text3); font-family: var(--font-mono); letter-spacing: 1px; margin-bottom: 4px; text-transform: uppercase; }
+  .font-option-sample { font-size: 20px; color: var(--white); line-height: 1; }
+
   /* RESPONSIVE */
   @media (max-width: 768px) {
     header { padding: 0 20px; }
@@ -654,6 +709,10 @@
     </div>
     <div class="modal-body">
       <div class="modal-img" id="modalImg"></div>
+      <div style="text-align:center;margin-top:-16px;margin-bottom:20px">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text3);letter-spacing:1px;cursor:pointer" onclick="triggerImgUpload(modalProduct?.id)">📷 Clic en la imagen para subir foto del producto</span>
+      </div>
+      <input type="file" id="modalImgInput" class="img-input" accept="image/*" onchange="handleImgUpload(event)">
       <div class="modal-meta" id="modalMeta"></div>
       <p class="modal-desc" id="modalDesc"></p>
       <div class="qty-row">
@@ -823,6 +882,14 @@
               <option value="#1a1a1a">Gris muy oscuro</option>
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label">Fuente de títulos (Display)</label>
+            <div class="font-preview-grid" id="fontDisplayGrid"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fuente de textos (Body)</label>
+            <div class="font-preview-grid" id="fontBodyGrid"></div>
+          </div>
           <button class="btn-save" onclick="saveSetting('appearance')">GUARDAR</button>
         </div>
 
@@ -929,7 +996,9 @@ let state = {
     twilioTo: '',
     twilioFrom: '',
     lowStock: 3,
-    allowOos: 'no'
+    allowOos: 'no',
+    fontDisplay: 'Bebas Neue',
+    fontBody: 'Outfit'
   }
 };
 
@@ -1006,10 +1075,13 @@ function renderShop() {
       ? '<div class="product-badge out">Agotado</div>'
       : low ? '<div class="product-badge low">Últimas unidades</div>' : '';
     const canAdd = !out || state.config.allowOos === 'yes';
+    const imgContent = p.image
+      ? `<img src="${p.image}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">`
+      : `<span style="font-size:64px">${p.emoji || '📦'}</span>`;
     return `
     <div class="product-card" onclick="openModal(${p.id})">
       <div class="product-img">
-        <div class="product-img-inner">${p.emoji || '📦'}</div>
+        <div class="product-img-inner" style="position:relative">${imgContent}</div>
         ${badgeHtml}
       </div>
       <div class="product-body">
@@ -1045,7 +1117,17 @@ function openModal(id) {
   modalQty = 1;
 
   document.getElementById('modalTitle').textContent = p.name;
-  document.getElementById('modalImg').textContent = p.emoji || '📦';
+  const imgEl = document.getElementById('modalImg');
+  if (p.image) {
+    imgEl.innerHTML = `<img src="${p.image}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">`;
+    imgEl.style.padding = '0';
+  } else {
+    imgEl.textContent = p.emoji || '📦';
+    imgEl.style.padding = '';
+  }
+  imgEl.style.cursor = 'pointer';
+  imgEl.title = 'Clic para cambiar imagen del producto';
+  imgEl.onclick = () => triggerImgUpload(p.id);
   document.getElementById('modalQty').textContent = 1;
   document.getElementById('modalDesc').textContent = p.desc;
 
@@ -1227,8 +1309,11 @@ function renderCart() {
           <textarea class="form-textarea" id="custNotes" placeholder="Instrucciones especiales..."></textarea>
         </div>
 
-        <button class="btn-pay" onclick="processOrder(${total})">💳 PAGAR CON WOMPI</button>
+        <button class="btn-pay" onclick="processOrder(${total}, 'wompi')">💳 PAGAR CON WOMPI</button>
         <div class="wompi-note">🔒 Pago seguro · Wompi by Bancolombia</div>
+        <div class="payment-divider" style="margin-top:16px"><span>O TAMBIÉN</span></div>
+        <button class="btn-cod" onclick="processOrder(${total}, 'cod')">🚪 PAGO CONTRA ENTREGA</button>
+        <div class="cod-note">Pagas cuando recibes tu pedido · Solo efectivo</div>
       </div>
     </div>
   </div>`;
@@ -1263,7 +1348,7 @@ function clearCart() {
 }
 
 // ===================== ORDER PROCESSING =====================
-function processOrder(total) {
+function processOrder(total, paymentMethod = 'wompi') {
   const name = document.getElementById('custName')?.value?.trim();
   const phone = document.getElementById('custPhone')?.value?.trim();
   const email = document.getElementById('custEmail')?.value?.trim();
@@ -1286,7 +1371,8 @@ function processOrder(total) {
     subtotal: state.cart.reduce((s, c) => { const p = state.products.find(x => x.id === c.id); return s + (p ? p.price * c.qty : 0); }, 0),
     shipping: Number(state.config.shippingCost) || 0,
     total,
-    status: 'pending'
+    status: 'pending',
+    paymentMethod
   };
 
   // Discount stock
@@ -1306,8 +1392,11 @@ function processOrder(total) {
   // Send WhatsApp notification
   sendWhatsAppNotification(order);
 
-  // Redirect to Wompi if configured
-  if (state.config.wompiKey) {
+  // Route by payment method
+  if (paymentMethod === 'cod') {
+    toast(`✅ Pedido ${order.id} registrado — Pago contra entrega`, 'success');
+    setTimeout(() => { showPage('shop'); toast('📦 Te contactaremos para coordinar la entrega', 'info'); }, 800);
+  } else if (state.config.wompiKey) {
     launchWompi(order, total);
   } else {
     toast('⚠️ Configura tu clave Wompi en el Panel → Configuración', 'info');
@@ -1336,7 +1425,7 @@ async function sendWhatsAppNotification(order) {
 
   const itemsText = order.items.map(i => `• ${i.name} x${i.qty} = ${fmt(i.price * i.qty)} COP`).join('\n');
 
-  const msg = `🛒 *NUEVO PEDIDO — ${order.id}*\n\n👤 *Cliente:* ${order.customer.name}\n📱 *Tel:* ${order.customer.phone}\n📧 *Email:* ${order.customer.email}\n📍 *Dirección:* ${order.customer.address}\n\n📦 *Productos:*\n${itemsText}\n\n💰 *Subtotal:* ${fmt(order.subtotal)} COP\n🚚 *Envío:* ${fmt(order.shipping)} COP\n💳 *TOTAL: ${fmt(order.total)} COP*\n\n⏰ *Despacho:* 24 horas hábiles`;
+  const msg = `🛒 *NUEVO PEDIDO — ${order.id}*\n\n👤 *Cliente:* ${order.customer.name}\n📱 *Tel:* ${order.customer.phone}\n📧 *Email:* ${order.customer.email}\n📍 *Dirección:* ${order.customer.address}\n\n📦 *Productos:*\n${itemsText}\n\n💰 *Subtotal:* ${fmt(order.subtotal)} COP\n🚚 *Envío:* ${fmt(order.shipping)} COP\n💳 *TOTAL: ${fmt(order.total)} COP*\n\n💵 *Pago:* ${order.paymentMethod === 'cod' ? '🚪 CONTRA ENTREGA' : '💳 WOMPI (online)'}\n⏰ *Despacho:* 24 horas hábiles`;
 
   try {
     const body = new URLSearchParams({
@@ -1403,7 +1492,9 @@ function renderProductsList() {
     const out = p.stock === 0;
     return `
     <div class="product-row">
-      <div class="icon">${p.emoji || '📦'}</div>
+      <div class="icon" style="position:relative;overflow:hidden;border-radius:2px;background:var(--bg3);width:52px;height:52px;display:flex;align-items:center;justify-content:center">
+        ${p.image ? `<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">` : `<span style="font-size:24px">${p.emoji || '📦'}</span>`}
+      </div>
       <div class="info">
         <h4>${p.name}</h4>
         <small>${p.cat} · ID: ${p.id}</small>
@@ -1414,6 +1505,7 @@ function renderProductsList() {
       <input class="price-input" type="number" value="${p.price}"
         onchange="updatePrice(${p.id}, this.value)" title="Precio COP">
       <div class="row-actions">
+        <button class="btn-sm" onclick="triggerAdminImgUpload(${p.id})">📷 FOTO</button>
         <button class="btn-sm danger" onclick="deleteProduct(${p.id})">ELIMINAR</button>
       </div>
     </div>`;
@@ -1435,7 +1527,7 @@ function renderOrders() {
         <div class="order-id">${o.id} · ${dateStr}</div>
         <div class="order-customer">${o.customer.name}</div>
         <div class="order-items-list">${o.items.map(i => `${i.name} x${i.qty}`).join(' · ')} · 📍 ${o.customer.address}</div>
-        <div style="margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">📱 ${o.customer.phone} · 📧 ${o.customer.email}</div>
+        <div style="margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">📱 ${o.customer.phone} · 📧 ${o.customer.email} · ${o.paymentMethod === 'cod' ? '🚪 Contra entrega' : '💳 Wompi'}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div class="order-total">${fmt(o.total)} <small style="font-family:var(--font-body);font-size:12px;color:var(--text3)">COP</small></div>
@@ -1533,6 +1625,7 @@ function loadSettingsForm() {
   setVal('cfg-twilioFrom', c.twilioFrom);
   setVal('cfg-lowStock', c.lowStock);
   setVal('cfg-allowOos', c.allowOos);
+  renderFontPickers();
 }
 
 function setVal(id, val) {
@@ -1551,6 +1644,7 @@ function saveSetting(type) {
   if (type === 'appearance') {
     c.accentColor = getVal('cfg-accentColor') || 'green';
     c.bgColor = getVal('cfg-bgColor') || '#080808';
+    // fontDisplay and fontBody are set directly by selectFont()
     applyAppearance();
   }
   if (type === 'wompi') {
@@ -1600,11 +1694,11 @@ function applyAppearance() {
   document.body.className = '';
   if (c.accentColor !== 'green') document.body.classList.add('theme-' + c.accentColor);
   document.documentElement.style.setProperty('--bg', c.bgColor);
-  // derive bg2-bg4 from bg
-  const base = parseInt(c.bgColor.replace('#',''), 16);
   document.documentElement.style.setProperty('--bg2', shadeHex(c.bgColor, 7));
   document.documentElement.style.setProperty('--bg3', shadeHex(c.bgColor, 14));
   document.documentElement.style.setProperty('--bg4', shadeHex(c.bgColor, 22));
+  if (c.fontDisplay) document.documentElement.style.setProperty('--font-display', `'${c.fontDisplay}', sans-serif`);
+  if (c.fontBody) document.documentElement.style.setProperty('--font-body', `'${c.fontBody}', sans-serif`);
 }
 
 function shadeHex(hex, amount) {
@@ -1645,6 +1739,109 @@ function fmt(n) {
 document.getElementById('productModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
+
+// ===================== FONT PICKER =====================
+const DISPLAY_FONTS = [
+  { name: 'Bebas Neue', sample: 'NEXUS IoT' },
+  { name: 'Orbitron', sample: 'NEXUS IoT' },
+  { name: 'Rajdhani', sample: 'NEXUS IoT' },
+  { name: 'Syncopate', sample: 'NEXUS' },
+  { name: 'Oxanium', sample: 'NEXUS IoT' },
+  { name: 'Chakra Petch', sample: 'NEXUS IoT' },
+  { name: 'Syne', sample: 'NEXUS IoT' },
+  { name: 'Exo 2', sample: 'NEXUS IoT' },
+];
+const BODY_FONTS = [
+  { name: 'Outfit', sample: 'Aa — Texto limpio' },
+  { name: 'Space Grotesk', sample: 'Aa — Moderno' },
+  { name: 'DM Sans', sample: 'Aa — Elegante' },
+  { name: 'Exo 2', sample: 'Aa — Tech' },
+  { name: 'Chakra Petch', sample: 'Aa — Futurista' },
+  { name: 'Rajdhani', sample: 'Aa — Industrial' },
+  { name: 'Inter', sample: 'Aa — Clásico' },
+  { name: 'Oxanium', sample: 'Aa — Espacial' },
+];
+
+function renderFontPickers() {
+  const dg = document.getElementById('fontDisplayGrid');
+  const bg = document.getElementById('fontBodyGrid');
+  if (!dg || !bg) return;
+  const curD = state.config.fontDisplay || 'Bebas Neue';
+  const curB = state.config.fontBody || 'Outfit';
+  dg.innerHTML = DISPLAY_FONTS.map(f => `
+    <div class="font-option ${f.name === curD ? 'selected' : ''}" onclick="selectFont('display','${f.name}')">
+      <div class="font-option-name">${f.name}</div>
+      <div class="font-option-sample" style="font-family:'${f.name}',sans-serif">${f.sample}</div>
+    </div>`).join('');
+  bg.innerHTML = BODY_FONTS.map(f => `
+    <div class="font-option ${f.name === curB ? 'selected' : ''}" onclick="selectFont('body','${f.name}')">
+      <div class="font-option-name">${f.name}</div>
+      <div class="font-option-sample" style="font-family:'${f.name}',sans-serif;font-size:15px">${f.sample}</div>
+    </div>`).join('');
+}
+
+function selectFont(type, fontName) {
+  if (type === 'display') {
+    state.config.fontDisplay = fontName;
+    document.documentElement.style.setProperty('--font-display', `'${fontName}', sans-serif`);
+  } else {
+    state.config.fontBody = fontName;
+    document.documentElement.style.setProperty('--font-body', `'${fontName}', sans-serif`);
+  }
+  saveState();
+  renderFontPickers();
+  toast(`Fuente "${fontName}" aplicada ✓`, 'success');
+}
+
+// ===================== IMAGE UPLOAD =====================
+function triggerImgUpload(productId) {
+  const input = document.getElementById('modalImgInput');
+  if (!input || !productId) return;
+  input._productId = productId;
+  input.click();
+}
+
+function handleImgUpload(event) {
+  const file = event.target.files[0];
+  const productId = event.target._productId;
+  if (!file || !productId) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const prod = state.products.find(p => p.id === productId);
+    if (prod) {
+      prod.image = e.target.result;
+      saveState();
+      // Update modal image
+      const imgEl = document.getElementById('modalImg');
+      if (imgEl) {
+        imgEl.innerHTML = `<img src="${prod.image}" alt="${prod.name}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">`;
+        imgEl.style.padding = '0';
+      }
+      // Update admin product row icon if visible
+      renderProductsList();
+      toast('📷 Imagen del producto actualizada ✓', 'success');
+    }
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+// Also allow image upload from product manager in admin
+function triggerAdminImgUpload(productId) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const prod = state.products.find(p => p.id === productId);
+      if (prod) { prod.image = ev.target.result; saveState(); renderProductsList(); toast('Imagen actualizada ✓', 'success'); }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
 
 // ===================== INIT =====================
 loadState();
